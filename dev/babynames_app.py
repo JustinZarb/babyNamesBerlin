@@ -27,8 +27,7 @@ def kiez_selector(baby_names: pd.DataFrame, kiez_names: list, first_name_only=Tr
     if all_option in selected_kiez:
         # st.write(" | ".join(kiez_names))
         selection = (
-            baby_names.drop("kiez", axis=1)
-            .groupby(["vorname", "geschlecht", "position", "jahr"])
+            baby_names.groupby(["vorname", "geschlecht", "position", "jahr", "kiez"])
             .sum()
             .reset_index()
             .sort_values(by="anzahl", ascending=False)
@@ -113,7 +112,7 @@ def to_timeseries(names: pd.DataFrame):
         names.drop("position", axis=1, inplace=True)
 
     names_ts = names.pivot_table(index="vorname", columns="jahr", values="anzahl")
-    names_ts = names_ts.sort_values(by=2022, ascending=False).head(20).T
+    names_ts = names_ts.sort_values(by=2022, ascending=False).head(30).T
     names_ts.index = pd.to_datetime(names_ts.index, format="%Y").strftime("%Y")
     names_ts = names_ts.fillna(0).astype(int).sort_index(ascending=False)
 
@@ -160,8 +159,8 @@ if __name__ == "__main__":
 
     # search for a name
     selection = name_search(baby_names, kiez_names)
-    st.text("selection")
-    st.table(selection.head(10))
+    # st.text("selection")
+    # st.table(selection.head(30))
 
     selection_timeseries = to_timeseries(selection)
     st.table(selection_timeseries)
