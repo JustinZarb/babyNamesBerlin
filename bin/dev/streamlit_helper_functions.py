@@ -143,7 +143,7 @@ def gender_viz(names):
     df = names.copy()
 
     # Start streamlit app
-    st.title("Gender Visualization")
+    st.header("Gender Visualization")
 
     # Let the user select a score range
     score_range = st.slider(

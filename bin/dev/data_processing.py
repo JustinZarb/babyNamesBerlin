@@ -76,24 +76,6 @@ def get_names_all(write_csv: bool = False):
     return all_names
 
 
-def add_features(names: pd.DataFrame, write_csv: bool = False):
-    names = combine_vorname_geschlecht_position(names)
-    names = add_gender_scale_unisex_score(names)
-
-    if write_csv:
-        csv_path = (
-            pathlib.Path(__file__)
-            / ".."
-            / ".."
-            / ".."
-            / "data"
-            / "names_combined_features.csv"
-        ).resolve()
-        names.to_csv(csv_path)
-
-    return names
-
-
 def combine_vorname_geschlecht_position(names: pd.DataFrame):
     """Creates the "vorname_" column with gender and position encoded
 
@@ -163,4 +145,26 @@ def add_gender_scale_unisex_score(names: pd.DataFrame):
     names["gender_scale"] = names["vorname"].map(gender_scale)
     names["gender_scale"] = names["gender_scale"].astype("float16")
     names["gender_category"] = pd.cut(names["gender_scale"], bins=bins, labels=labels)
+    return names
+
+
+def add_rank(names: pd.DataFrame):
+    return names
+
+
+def add_features(names: pd.DataFrame, write_csv: bool = False):
+    names = combine_vorname_geschlecht_position(names)
+    names = add_gender_scale_unisex_score(names)
+
+    if write_csv:
+        csv_path = (
+            pathlib.Path(__file__)
+            / ".."
+            / ".."
+            / ".."
+            / "data"
+            / "names_combined_features.csv"
+        ).resolve()
+        names.to_csv(csv_path)
+
     return names
