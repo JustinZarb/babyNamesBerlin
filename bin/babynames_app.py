@@ -38,7 +38,7 @@ if __name__ == "__main__":
         st.title("Predicting this year's names")
 
     pages = {
-        "Home": page_2,
+        "Home": page_1,
         "Names": page_2,
         "Genders": page_3,
         "Forecast": page_4,
