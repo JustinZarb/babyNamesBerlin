@@ -19,13 +19,30 @@ def filter_gender(names: pd.DataFrame):
     return selection
 
 
-def first_names_only(names: pd.DataFrame):
+def first_names_only(names: pd.DataFrame, remove_pre_2016=False):
     # first name only
     first_name_only = st.checkbox(
         "First names only (all names will be used for 2012-2016)", value=True
     )
+
     if first_name_only:
         names = names.loc[names.loc[:, "position"] == 1, :]
+        if remove_pre_2016:
+            names = names.loc[names.loc[:, "jahr"] <= 2016]
+
+    return names
+
+
+def name_position_radio(names: pd.DataFrame):
+    positions = [1, 2, 3, 4, 5, 6]
+    position = st.select_slider(
+        "Name position. Default is 'All' to include data between 2012 and 2016",
+        ["All"] + positions,
+        value="All",
+    )
+    if position is not "All":
+        names = names.loc[names.loc[:, "position"] == int(position), :]
+        names = names.loc[names.loc[:, "jahr"] >= 2016]
     return names
 
 
@@ -139,25 +156,47 @@ def kiez_selection_to_timeseries(names: pd.DataFrame, kiez_string):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def gender_viz(names):
+def gender_viz1(names):
     df = names.copy()
 
     # Start streamlit app
     st.header("Gender Visualization")
-
-    # Let the user select a score range
-    score_range = st.slider(
-        "Associated gender range",
-        min_value=0.0,
-        max_value=1.0,
-        value=(0.25, 0.75),  # the initial range
-        step=0.01,
+    st.markdown(
+        "Using the assigned gender at birth, it is possible to assign a 'unisex score' to the names, where a score of 0 means the name was only assigned to either males or females, while 1 was assigned equally to males and females. This has no connection to the chosen gender of the individual. The following graphs represent the entire dataset (2012-2022)."
     )
 
-    # Filter the DataFrame for names within the selected score range
-    df_category = df[
-        (df["gender_scale"] >= score_range[0]) & (df["gender_scale"] <= score_range[1])
+    # Select name position
+    df = name_position_radio(df)
+    # Calculate the gender score bins
+    bins = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
+    labels = [
+        "Predominantly Male",
+        "Male-leaning Unisex",
+        "True Unisex",
+        "Female-leaning Unisex",
+        "Predominantly Female",
     ]
+    df["gender_category"] = pd.cut(df["gender_scale"], bins=bins, labels=labels)
+
+    # Calculate the number of names in each gender score bin
+    bin_counts = df["gender_category"].value_counts().sort_index()
+
+    # Plot the histogram of names per bin
+    hist_fig = px.bar(
+        x=labels,
+        y=bin_counts,
+        labels={"x": "Gender Score Range", "y": "Number of Names"},
+        title="Number of Names per Gender Score Range",
+    )
+    st.plotly_chart(hist_fig, use_container_width=True)
+
+    # Let the user select a gender score bin
+    selected_category = st.select_slider(
+        "Select a Gender Score Range", labels, value="True Unisex"
+    )
+
+    # Filter the DataFrame for names within the selected gender score bin
+    df_category = df[df["gender_category"] == selected_category]
 
     # Aggregate the filtered DataFrame by name (taking the sum of 'anzahl')
     df_category = (
@@ -170,9 +209,7 @@ def gender_viz(names):
             }
         )
         .reset_index()
-        .sort_values(
-            ["vorname", "gender_scale"], ascending=[True, True]
-        )  # Sort by both at once
+        .sort_values(["gender_scale"], ascending=[True])
     )
 
     # Create a bar plot with names on x-axis and 'anzahl' on y-axis
@@ -185,7 +222,7 @@ def gender_viz(names):
         labels={"anzahl": "Total Count"},
         color_continuous_scale=px.colors.sequential.RdBu_r,
         color_continuous_midpoint=0.5,
-        title=f"Names in gender range {score_range}",
+        title=f"Names in Gender Score Range: {selected_category}",
     )
     fig.update_coloraxes(cmin=0, cmax=1)
     fig.update_traces(marker_line_color="rgba(0,0,0,0)", marker_line_width=1.5)
@@ -201,7 +238,7 @@ def gender_viz(names):
             show_labels = group[group["anzahl"] > threshold]
         return show_labels
 
-    # Get outliers within the filtered names
+    # Get outliers within the selected gender score bin
     outliers = get_outliers_in_category(df_category)
 
     # Add text labels for outlier names
@@ -222,6 +259,106 @@ def gender_viz(names):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+
+def gender_viz2(names):
+    df = names.copy()
+
+    # Start streamlit app
+    st.header("Gender Visualization")
+
+    # Let the user select a score range
+    score_range = st.slider(
+        "Associated gender range",
+        min_value=0.0,
+        max_value=1.0,
+        value=(0.25, 0.75),  # the initial range
+        step=0.01,
+    )
+
+    # Filter the DataFrame for names within the selected score range
+    df_category = df[
+        (df["gender_scale"] >= score_range[0]) & (df["gender_scale"] <= score_range[1])
+    ]
+
+    # Create a histogram of the number of names per bin
+    fig_hist = px.histogram(
+        df_category,
+        x="gender_scale",
+        nbins=20,
+        labels={"gender_scale": "Gender Scale", "count": "Number of Names"},
+        title="Distribution of Names by Gender Scale",
+        color_discrete_sequence=["#1f77b4"],
+        opacity=0.8,
+    )
+    fig_hist.update_layout(
+        xaxis={"title": "Gender Scale"},
+        yaxis={"title": "Number of Names"},
+        showlegend=False,
+    )
+    st.plotly_chart(fig_hist, use_container_width=True)
+
+    # Aggregate the filtered DataFrame by name (taking the sum of 'anzahl')
+    df_category = (
+        df_category.groupby("vorname")
+        .agg(
+            {
+                "anzahl": "sum",
+                "gender_scale": "mean",
+                "unisex_score": "mean",
+            }
+        )
+        .reset_index()
+        .sort_values(["gender_scale"], ascending=[True])  # Sort by gender scale
+    )
+
+    # Create a bar plot with names on x-axis and 'anzahl' on y-axis
+    # Colors are set based on 'gender_scale'
+    fig_bar = px.bar(
+        df_category,
+        x="vorname",
+        y="anzahl",
+        color="gender_scale",
+        labels={"anzahl": "Total Count"},
+        color_continuous_scale=px.colors.sequential.RdBu_r,
+        color_continuous_midpoint=0.5,
+        title=f"Names in gender range {score_range}",
+    )
+    fig_bar.update_coloraxes(cmin=0, cmax=1)
+    fig_bar.update_traces(marker_line_color="rgba(0,0,0,0)", marker_line_width=1.5)
+
+    # Define function to get names above a certain percentile within each gender category
+    def get_outliers_in_category(group):
+        threshold = group["anzahl"].quantile(0.98)  # 98th percentile within each group
+        show_labels = group[group["anzahl"] > threshold]
+        if len(show_labels) > 50:
+            threshold = group["anzahl"].quantile(
+                0.9995
+            )  # 99.95th percentile within each group
+            show_labels = group[group["anzahl"] > threshold]
+        return show_labels
+
+    # Get outliers within the filtered names
+    outliers = get_outliers_in_category(df_category)
+
+    # Add text labels for outlier names
+    for i, row in outliers.iterrows():
+        fig_bar.add_trace(
+            go.Scatter(
+                x=[row["vorname"]],
+                y=[row["anzahl"]],
+                text=[row["vorname"]],
+                mode="text",
+                showlegend=False,
+            )
+        )
+
+    fig_bar.update_traces(
+        hovertemplate="Name: %{x}<br>Total Count: %{y}<br>Unisex Score: %{customdata[0]:.2f}<br>Gender Scale: %{customdata[1]:.2f}",
+        customdata=df_category[["unisex_score", "gender_scale"]].values,
+    )
+
+    st.plotly_chart(fig_bar, use_container_width=True)
 
 
 def levenshtein_similarity(name, names, n=10):
@@ -254,5 +391,5 @@ def similar_names(names: pd.DataFrame):
 
     if len(selected_names) == 1:
         for n in selected_names:
-            similar = levenshtein_similarity(n, all_names, n=10)
-            st.text(similar)
+            similar = levenshtein_similarity(n, all_names, n=20)
+            st.text(f"Levenshtein similarity: {similar}")
