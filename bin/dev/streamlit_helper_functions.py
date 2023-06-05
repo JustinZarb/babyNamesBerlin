@@ -42,7 +42,7 @@ def name_position_radio(names: pd.DataFrame):
     )
     if position is not "All":
         names = names.loc[names.loc[:, "position"] == int(position), :]
-        names = names.loc[names.loc[:, "jahr"] >= 2016]
+        names = names.loc[names.loc[:, "jahr"] > 2016]
     return names
 
 
